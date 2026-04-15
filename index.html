@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sinai Mountain — הר סיני</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Heebo:wght@400;700&display=swap');
+
+:root {
+    --gold: #f0c040;
+    --gold-dk: #b8860b;
+    --deep: #09040f;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--deep);
+    font-family: 'Heebo', sans-serif;
+}
+
+#game-canvas { position: fixed; top: 0; left: 0; z-index: 1; display: block; }
+
+.screen {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(9, 4, 15, 0.9); text-align: center; transition: opacity 0.5s;
+}
+
+.screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.char-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;
+    max-width: 900px; width: 95%; margin: 25px 0;
+}
+
+.char-card {
+    border: 2px solid rgba(240, 192, 64, 0.2); border-radius: 20px;
+    padding: 15px; cursor: pointer; background: rgba(255, 255, 255, 0.05);
+    transition: 0.3s;
+}
+
+.char-card:hover { transform: scale(1.05); border-color: var(--gold); }
+.char-card.sel { border-color: var(--gold); background: rgba(240, 192, 64, 0.2); }
+
+.char-avatar {
+    width: 130px; height: 130px; border-radius: 50%;
+    margin: 0 auto 10px; overflow: hidden; border: 3px solid var(--gold);
+}
+
+.char-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+#hud {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+    padding: 20px; display: flex; justify-content: space-between;
+    pointer-events: none; color: white;
+}
+
+.btn {
+    padding: 15px 45px; background: linear-gradient(135deg, #f0c040, #b8860b);
+    color: black; border: none; cursor: pointer; font-weight: bold;
+    font-size: 1.2rem; border-radius: 8px;
+}
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<div class="screen" id="scr-title">
+    <h1 style="font-family:'Cinzel Decorative'; color:var(--gold); font-size:4rem;">SINAI MOUNTAIN</h1>
+    <h2 style="color:white; margin-bottom:20px;">הר סיני</h2>
+    <button class="btn" onclick="UI.showCharSelect()">התחל הרפתקה</button>
+</div>
+
+<div class="screen hidden" id="scr-char">
+    <h2 style="color:var(--gold); margin-bottom:20px;">בחר את הגיבור שלך</h2>
+    <div class="char-grid" id="char-grid"></div>
+    <button class="btn" onclick="Game.start()">צא לדרך!</button>
+</div>
+
+<div id="hud" class="hidden">
+    <div style="text-align:right;">
+        <div id="hud-hearts" style="font-size:2rem;">❤️❤️❤️</div>
+        <div style="font-size:1.2rem; margin-top:5px;">💰 <span id="hud-gc">0</span></div>
+    </div>
+    <div style="text-align:left;">
+        <div id="hud-score" style="font-size:1.5rem;">0 m</div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+const A = {
+    SKY: 'assets/sky_sinai.jpg',
+    ROAD: 'assets/road_black_gold.jpg',
+    HERO_ABRAHAM: 'assets/hero_abraham.png',
+    HERO_ISAAC: 'assets/hero_isaac.png',
+    HERO_JACOB: 'assets/hero_jacob.png',
+    HERO_JOSEPH: 'assets/hero_joseph.png',
+    HERO_MOSHE: 'assets/hero_moshe.png',
+    HERO_DAVID: 'assets/hero_david.png',
+    HERO_SOLOMON: 'assets/hero_solomon.png'
+};
+
+const HEROES = [
+    {id:'abraham', name:'אברהם אבינו', asset:A.HERO_ABRAHAM},
+    {id:'isaac', name:'יצחק אבינו', asset:A.HERO_ISAAC},
+    {id:'jacob', name:'יעקב אבינו', asset:A.HERO_JACOB},
+    {id:'joseph', name:'יוסף הצדיק', asset:A.HERO_JOSEPH},
+    {id:'moshe', name:'משה רבנו', asset:A.HERO_MOSHE},
+    {id:'david', name:'דוד המלך', asset:A.HERO_DAVID},
+    {id:'solomon', name:'שלמה המלך', asset:A.HERO_SOLOMON}
+];
+
+const Game = {
+    active: false,
+    score: 0,
+    hero: HEROES[0],
+    
+    start: function() {
+        UI.show('hud');
+        this.active = true;
+        Engine.init();
+        this._loop();
+    },
+    
+    _loop: function() {
+        if(!Game.active) return;
+        requestAnimationFrame(() => Game._loop());
+        Game.score += 0.2;
+        document.getElementById('hud-score').textContent = Math.floor(Game.score) + " m";
+        Engine.render();
+    }
+};
+
+const Engine = {
+    init: function() {
+        this.R = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true });
+        this.R.setSize(window.innerWidth, window.innerHeight);
+        this.S = new THREE.Scene();
+        this.C = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
+        this.C.position.set(0, 5, 15);
+        this.C.lookAt(0, 2, 0);
+
+        const loader = new THREE.TextureLoader();
+        
+        // הגנה: אם אין תמונה, שים צבע כחול יפה לשמיים
+        this.S.background = new THREE.Color(0x87CEEB); 
+        loader.load(A.SKY, (t) => { this.S.background = t; });
+
+        this.S.add(new THREE.AmbientLight(0xffffff, 1));
+
+        // כביש
+        const roadGeo = new THREE.PlaneGeometry(10, 1000);
+        const roadMat = new THREE.MeshPhongMaterial({ color: 0xDAA520 }); // צבע זהב כברירת מחדל
+        loader.load(A.ROAD, (t) => { 
+            t.wrapS = t.wrapT = THREE.RepeatWrapping;
+            t.repeat.set(1, 50);
+            roadMat.map = t; 
+            roadMat.color.setHex(0xffffff);
+            roadMat.needsUpdate = true; 
+        });
+        const road = new THREE.Mesh(roadGeo, roadMat);
+        road.rotation.x = -Math.PI/2;
+        this.S.add(road);
+    },
+    render: function() { this.R.render(this.S, this.C); }
+};
+
+const UI = {
+    show: function(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+        if(id !== 'hud') document.getElementById(id).classList.remove('hidden');
+        else document.getElementById('hud').classList.remove('hidden');
+    },
+    showCharSelect: function() {
+        this.show('scr-char');
+        const grid = document.getElementById('char-grid');
+        grid.innerHTML = '';
+        HEROES.forEach(h => {
+            const card = document.createElement('div');
+            card.className = 'char-card' + (Game.hero.id === h.id ? ' sel' : '');
+            card.innerHTML = `
+                <div class="char-avatar"><img src="${h.asset}" onerror="this.src='https://via.placeholder.com/130/000000/F0C040?text=HERO'"></div>
+                <div style="color:white; font-weight:bold;">${h.name}</div>
+            `;
+            card.onclick = () => {
+                Game.hero = h;
+                document.querySelectorAll('.char-card').forEach(c => c.classList.remove('sel'));
+                card.classList.add('sel');
+            };
+            grid.appendChild(card);
+        });
+    }
+};
+
+UI.show('scr-title');
+</script>
+</body>
+</html>
